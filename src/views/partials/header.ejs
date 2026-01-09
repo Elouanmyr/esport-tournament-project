@@ -1,0 +1,46 @@
+<header class="bg-gray-800 text-white">
+  <nav class="container mx-auto px-4 py-4">
+    <div class="flex justify-between items-center">
+      <a href="/" class="text-xl font-bold hover:text-blue-400">
+        E-sport Tournament Manager
+      </a>
+      <ul class="flex gap-6 items-center">
+        <li>
+          <a href="/" class="hover:text-blue-400">
+            Accueil
+          </a>
+        </li>
+        <li>
+          <a href="/api-docs" class="hover:text-blue-400 text-gray-400">
+            API Docs
+          </a>
+        </li>
+        <li class="border-l border-gray-600 pl-6 ml-2">
+          <% if (user && user.role === 'admin') { %>
+            <div class="flex items-center gap-4">
+              <span class="text-gray-400">
+                <%= user.username %>
+              </span>
+              <a href="/auth/logout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm">
+                Déconnexion
+              </a>
+            </div>
+          <% } else if (user) { %>
+            <div class="flex items-center gap-4">
+              <span class="text-gray-400">
+                <%= user.username %>
+              </span>
+              <a href="/auth/logout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm">
+                Déconnexion
+              </a>
+            </div>
+          <% } else { %>
+            <a href="/auth/login" class="bg-blue-500 hover:bg-blue-600 px-3 py-1 rounded text-sm">
+              Connexion
+            </a>
+          <% } %>
+        </li>
+      </ul>
+    </div>
+  </nav>
+</header>

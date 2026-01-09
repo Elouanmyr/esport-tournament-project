@@ -1,0 +1,76 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Modèle Utilisateur adapté [cite: 1, 12]
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  role      String   @default("PLAYER") // PLAYER, ORGANIZER, ADMIN 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations 
+  teamId               Int?
+  team                 Team?          @relation("TeamMembers", fields: [teamId], references: [id])
+  captainOf            Team?          @relation("TeamCaptain")
+  organizedTournaments Tournament[]
+  registrations        Registration[]
+}
+
+// Modèle Tournoi 
+model Tournament {
+  id              Int      @id @default(autoincrement())
+  name            String
+  game            String
+  format          String   // SOLO ou TEAM
+  maxParticipants Int
+  prizePool       Float
+  startDate       DateTime
+  endDate         DateTime?
+  status          String   @default("DRAFT") // DRAFT, OPEN, ONGOING, etc.
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizerId     Int
+  organizer       User     @relation(fields: [organizerId], references: [id])
+  registrations   Registration[]
+}
+
+// Modèle Équipe 
+model Team {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  tag       String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  captainId Int      @unique
+  captain   User     @relation("TeamCaptain", fields: [captainId], references: [id])
+  members   User[]   @relation("TeamMembers")
+  registrations Registration[]
+}
+
+// Modèle Inscription 
+model Registration {
+  id           Int      @id @default(autoincrement())
+  status       String   @default("PENDING")
+  registeredAt DateTime @default(now())
+  confirmedAt  DateTime?
+
+  tournamentId Int
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  playerId     Int?
+  player       User?      @relation(fields: [playerId], references: [id])
+  teamId       Int?
+  team         Team?      @relation(fields: [teamId], references: [id])
+}
