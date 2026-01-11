@@ -8,10 +8,10 @@ async function main() {
   await prisma.team.deleteMany()
   await prisma.user.deleteMany()
 
-  // Création d'un mot de passe sécurisé 
+  // MDP sécurisé 
   const hashedPassword = await hashPassword('P@ssw0rd123')
 
-  console.log('Création des utilisateurs par défaut...')
+  console.log('Création des utilisateur par défaut...')
   const admin = await prisma.user.create({
     data: {
       username: 'admin_esport',

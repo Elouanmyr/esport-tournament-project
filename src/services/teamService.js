@@ -74,8 +74,7 @@ export const remove = async (id, userId) => {
   
   // Protection: Impossible de supprimer si inscrite à un tournoi OPEN ou ONGOING
   const activeRegistration = team.registrations.find(r => {
-    // Ce check nécessiterait un include du tournoi, simplifié ici
-    return r.tournamentId // On va vérifier côté contrôleur
+    return r.tournamentId  
   })
   
   if (team.registrations.length > 0) {

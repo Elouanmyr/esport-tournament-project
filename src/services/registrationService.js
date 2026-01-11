@@ -1,13 +1,18 @@
 import prisma from '../config/prisma.js'
 
 /**
- * Créer une inscription avec toutes les vérifications métier
- * [cite: 937, 938, 939, 941, 942, 943]
+ * Créer une inscription avec validation complète du format et du statut du tournoi
+ * Vérifie:
+ * - L'existence et l'état du tournoi (OPEN)
+ * - La cohérence entre format tournoi (SOLO/TEAM) et type d'inscription
+ * - Que le capitaine inscrit son équipe (pour TEAM)
+ * - Que la limite de participants n'est pas atteinte
+ * - Qu'il n'y a pas d'inscription dupliquée
  */
 export const create = async (data, userId) => {
   const { tournamentId, playerId, teamId } = data
 
-  // 1. Vérifier si le tournoi existe et son statut [cite: 938]
+  // 1. Récupérer le tournoi et compter les inscriptions confirmées
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
     include: { registrations: { where: { status: 'CONFIRMED' } } }
@@ -15,10 +20,10 @@ export const create = async (data, userId) => {
 
   if (!tournament) throw new Error('Tournoi non trouvé')
   if (tournament.status !== 'OPEN') {
-    throw new Error('Les inscriptions ne sont possibles que pour les tournois ouverts') // [cite: 938]
+    throw new Error('Les inscriptions ne sont possibles que pour les tournois ouverts')
   }
 
-  // 2. Vérifier la cohérence du format (SOLO vs TEAM) [cite: 939, 941]
+  // 2. Valider la cohérence format tournoi vs type d'inscription
   if (tournament.format === 'SOLO') {
     if (!playerId || teamId) {
       throw new Error('Un tournoi SOLO n’accepte que des joueurs individuels') // 
@@ -27,18 +32,18 @@ export const create = async (data, userId) => {
     if (!teamId || playerId) {
       throw new Error('Un tournoi TEAM n’accepte que des équipes') // [cite: 940]
     }    
-    // Vérifier que l'utilisateur est capitaine de l'équipe
+    // Seul le capitaine de l'équipe peut l'inscrire au tournoi
     const team = await prisma.team.findUnique({ where: { id: teamId } })
     if (!team || team.captainId !== userId) {
       throw new Error('Seul le capitaine peut inscrire l\'équipe')
     }  }
 
-  // 3. Vérifier la limite de participants [cite: 942]
+  // 3. Vérifier que la limite de participants n'est pas dépassée
   if (tournament.registrations.length >= tournament.maxParticipants) {
-    throw new Error('Le nombre maximum de participants est atteint') // [cite: 942]
+    throw new Error('Le nombre maximum de participants est atteint')
   }
 
-  // 4. Vérifier l'unicité (ne pas s'inscrire deux fois) [cite: 943]
+  // 4. Empêcher les inscriptions dupliquées (même joueur/équipe ne peut s'inscrire qu'une fois)
   const existing = await prisma.registration.findFirst({
     where: {
       tournamentId,
@@ -48,9 +53,9 @@ export const create = async (data, userId) => {
       ]
     }
   })
-  if (existing) throw new Error('Déjà inscrit à ce tournoi') // [cite: 943]
+  if (existing) throw new Error('Déjà inscrit à ce tournoi')
 
-  // 5. Création de l'inscription [cite: 933]
+  // 5. Créer l'inscription avec statut PENDING (en attente de confirmation)
   return prisma.registration.create({
     data: {
       tournamentId,
@@ -62,7 +67,7 @@ export const create = async (data, userId) => {
 }
 
 /**
- * List registrations for a tournament
+ * Récupérer toutes les inscriptions d'un tournoi avec les détails du joueur ou équipe
  */
 export const findByTournament = (tournamentId) => {
   return prisma.registration.findMany({
@@ -75,8 +80,10 @@ export const findByTournament = (tournamentId) => {
 }
 
 /**
- * Update registration status (for organizer or participant)
- * CONFIRMED cannot be deleted via DELETE, but can be changed to WITHDRAWN via PATCH
+ * Mettre à jour le statut d'une inscription
+ * Statuts valides: PENDING → CONFIRMED → WITHDRAWN
+ * ou PENDING → REJECTED
+ * Enregistre la date de confirmation si passage à CONFIRMED
  */
 export const updateStatus = async (id, newStatus) => {
   const registration = await prisma.registration.findUnique({
@@ -84,13 +91,13 @@ export const updateStatus = async (id, newStatus) => {
   })
   
   if (!registration) {
-    throw new Error('Registration not found')
+    throw new Error('Inscription non trouvée')
   }
-  
-  // Check valid status transitions
+
+  // Vérifier que le statut est valide
   const validStatuses = ['PENDING', 'CONFIRMED', 'REJECTED', 'WITHDRAWN']
   if (!validStatuses.includes(newStatus)) {
-    throw new Error('Invalid status')
+    throw new Error('Statut invalide')
   }
   
   return prisma.registration.update({
@@ -103,8 +110,9 @@ export const updateStatus = async (id, newStatus) => {
 }
 
 /**
- * Delete a registration (only if PENDING)
- * CONFIRMED registrations cannot be deleted, but can be withdrawn via updateStatus
+ * Supprimer une inscription (uniquement si statut PENDING)
+ * Les inscriptions CONFIRMED ne peuvent pas être supprimées directement
+ * Utilisez updateStatus pour les passer au statut WITHDRAWN
  */
 export const remove = async (id) => {
   const registration = await prisma.registration.findUnique({
@@ -112,11 +120,11 @@ export const remove = async (id) => {
   })
   
   if (!registration) {
-    throw new Error('Registration not found')
+    throw new Error('Inscription non trouvée')
   }
-  
+
   if (registration.status === 'CONFIRMED') {
-    throw new Error('Cannot delete a CONFIRMED registration. Use PATCH to change status to WITHDRAWN instead.')
+    throw new Error('Impossible de supprimer une inscription CONFIRMED. Utilisez PATCH pour la changer en WITHDRAWN.')
   }
   
   return prisma.registration.delete({

@@ -13,7 +13,7 @@ export const findAll = (filters) => {
 }
 
 export const create = async (data, organizerId) => {
-  // check que la date c'est dans le futur
+  // check que la date est dans le futur
   if (new Date(data.startDate) <= new Date()) {
     throw new Error('La date de début doit être dans le futur')
   }

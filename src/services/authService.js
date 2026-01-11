@@ -3,8 +3,6 @@ import jwt from 'jsonwebtoken'
 import prisma from '../config/prisma.js'
 import { env } from '../config/env.js'
 
-// hasher pwd avec crypto natif
-
 export const verifyToken = (token) => jwt.verify(token, env.JWT_SECRET)
 
 export const register = async (userData) => {

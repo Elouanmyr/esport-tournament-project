@@ -9,7 +9,7 @@ import * as response from '../utils/responseHelper.js'
 export const register = asyncHandler(async (req, res) => {
   const user = await authService.register(req.body)
   
-  // On génère le token immédiatement après l'inscription 
+  // On génère le token après l'inscription 
   const token = authService.generateToken(user)
 
   res.status(201).json({
@@ -41,7 +41,7 @@ export const login = asyncHandler(async (req, res) => {
  * Récupérer les informations de l'utilisateur connecté
  */
 export const getProfile = asyncHandler(async (req, res) => {
-  // L'utilisateur est déjà attaché à req.user par le middleware authenticate [cite: 898]
+  // L'utilisateur est déjà attaché à req.user par le middleware authenticate
   const user = await authService.getUserById(req.user.userId)
   
   if (!user) {

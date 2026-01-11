@@ -10,7 +10,7 @@ export const getAll = asyncHandler(async (req, res) => {
 export const remove = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id)
   
-  // Sécurité : on ne peut pas se supprimer soi-même
+  // Sécurité -> on ne peut pas se supprimer soi-même
   if (id === req.user.userId) {
     return res.status(400).json(response.error('Impossible de supprimer votre propre compte', 400))
   }

@@ -5,7 +5,7 @@ import { authorize } from '../middlewares/authorize.js'
 
 const router = Router()
 
-// Seul l'ADMIN peut voir la liste des membres ou en supprimer
+// Seul l'ADMIN peut donc voir la liste des membres ou en supprimer
 router.get('/', authenticate, authorize('ADMIN'), userController.getAll)
 router.delete('/:id', authenticate, authorize('ADMIN'), userController.remove)
 

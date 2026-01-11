@@ -15,7 +15,7 @@ const swaggerOptions = {
       },
     ],
   },
-  apis: ['./src/routes/*.js'], // Va lire les commentaires Swagger dans tes routes
+  apis: ['./src/routes/*.js'], //  Lis les commentaires Swagger dans les routes
 }
 
 export const swaggerSpec = swaggerJsDoc(swaggerOptions)

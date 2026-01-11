@@ -9,13 +9,13 @@ datasource db {
   provider = "sqlite"
 }
 
-// Modèle Utilisateur adapté [cite: 1, 12]
+// Modèle Utilisateur 
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   username  String   @unique
   password  String
-  role      String   @default("PLAYER") // PLAYER, ORGANIZER, ADMIN 
+  role      String   @default("PLAYER") // PLAYER, ORGANIZER ou ADMIN 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -37,7 +37,7 @@ model Tournament {
   prizePool       Float
   startDate       DateTime
   endDate         DateTime?
-  status          String   @default("DRAFT") // DRAFT, OPEN, ONGOING, etc.
+  status          String   @default("DRAFT") // DRAFT, OPEN, ONGOING, etc..
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

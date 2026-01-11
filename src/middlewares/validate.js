@@ -15,7 +15,7 @@ export const validate = (schema) => {
       })
     }
 
-    // Si tout est bon, on remplace le body par les données validées
+    // Et si tout est bon, on remplace le body par les données validées
     req.body = result.data
     next()
   }
