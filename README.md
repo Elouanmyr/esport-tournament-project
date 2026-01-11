@@ -61,7 +61,7 @@ npm run dev
 #### Step 1: Clone Repository
 ```bash
 git clone <repository-url>
-cd PROJET_Tournois_Esport_Elouan
+cd esport-tournament-project ; ls
 ```
 Downloads the project files to your computer.
 
