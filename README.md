@@ -19,68 +19,165 @@ This application allows you to:
 - Node.js >= 24.0.0
 - npm >= 11.0.0
 - SQLite 3 (included with Prisma)
+- Git (for cloning and version control)
 
-### Installation
+### Quick Start (5 minutes)
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone <repository-url>
 cd PROJET_Tournois_Esport_Elouan
 
-# Install dependencies
+# 2. Install dependencies (this takes 1-2 minutes)
 npm install
 
-# Create .env file from template
+# 3. Create environment file from template
 cp .env.example .env
 
-# Initialize the database and apply migrations
+# 4. Edit .env and set a secure JWT_SECRET (minimum 32 characters)
+# PORT=3000
+# NODE_ENV=development
+# DATABASE_URL="file:./prisma/dev.db"
+# JWT_SECRET="your-super-secret-key-min-32-characters!!"  <-- IMPORTANT!
+# JWT_EXPIRES_IN=24h
+
+# 5. Initialize and migrate the database
 npx prisma migrate dev
 
-# Seed database with sample data
+# 6. Populate database with sample data (optional but recommended)
 node prisma/seed.js
 
-# Start the server
+# 7. Start the development server
 npm run dev
 ```
 
-The server starts on **http://localhost:3000**
+**✅ Server is now running!**
+- **API**: http://localhost:3000
+- **Swagger UI**: http://localhost:3000/api-docs
+- **Prisma Studio**: Run `npx prisma studio` in another terminal to view/edit data
 
-API documentation available at **http://localhost:3000/api-docs** (Swagger UI)
+### Step-by-Step Explanation
+
+#### Step 1: Clone Repository
+```bash
+git clone <repository-url>
+cd PROJET_Tournois_Esport_Elouan
+```
+Downloads the project files to your computer.
+
+#### Step 2: Install Dependencies
+```bash
+npm install
+```
+Installs all required packages (Express, Prisma, bcrypt, etc.) into `node_modules/` folder.
+This creates a `package-lock.json` file to lock dependency versions.
+
+#### Step 3-4: Configure Environment
+```bash
+cp .env.example .env
+```
+Creates `.env` file from template. **Important**: Edit `.env` and change:
+- `JWT_SECRET` to a unique 32+ character string (this secures your authentication tokens)
+- Other variables if needed (PORT, DATABASE_URL, etc.)
+
+**Example JWT_SECRET values:**
+```
+JWT_SECRET="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"  # 40 chars (good)
+JWT_SECRET="MySecretKey123!@#$%^&*()_+{}[]|:;<>?,./"    # 40+ chars (good)
+```
+
+#### Step 5: Initialize Database
+```bash
+npx prisma migrate dev
+```
+Creates SQLite database file (`dev.db`) and applies all migrations from `/prisma/migrations/`.
+This creates the `User`, `Tournament`, `Team`, and `Registration` tables.
+
+#### Step 6: Seed Database (Optional)
+```bash
+node prisma/seed.js
+```
+Populates the database with test data:
+- **Admin user**: admin@esport.com / P@ssw0rd123 (role: ADMIN)
+- **Organizer user**: org@esport.com / P@ssw0rd123 (role: ORGANIZER)
+- **Test tournament**: "Masters Valorant 2025" (TEAM format, OPEN status)
+
+Useful for testing API endpoints without creating data manually.
+
+#### Step 7: Start Development Server
+```bash
+npm run dev
+```
+Starts Express server on http://localhost:3000 with hot reload (auto-restart on file changes).
+
+### First API Test
+
+#### 1. Open Swagger UI
+Navigate to: http://localhost:3000/api-docs
+
+#### 2. Register a test account
+- Click **POST /api/auth/register**
+- Click **Try it out**
+- Fill in:
+```json
+{
+  "email": "test@example.com",
+  "username": "testuser",
+  "password": "TestPassword123",
+  "role": "PLAYER"
+}
+```
+- Click **Execute**
+- Copy the `token` from response
+
+#### 3. Try an authenticated endpoint
+- Click **GET /api/auth/profile**
+- Click **Authorize** (top right)
+- Paste your token: `Bearer <token_from_register>`
+- Click **Execute** to see your user profile
 
 ## Configuration
 
 ### Environment Variables (.env)
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Server port | 3000 |
-| `NODE_ENV` | Environment mode | development |
-| `DATABASE_URL` | SQLite database path | `file:./prisma/dev.db` |
-| `JWT_SECRET` | JWT signing secret (min 32 chars) | (required) |
-| `JWT_EXPIRES_IN` | Token expiration time | 24h |
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `PORT` | Server listening port | 3000 | 3000, 5000, 8080 |
+| `NODE_ENV` | Environment mode | development | development, production |
+| `DATABASE_URL` | SQLite database path | `file:./prisma/dev.db` | `file:./prisma/dev.db` |
+| `JWT_SECRET` | JWT signing secret (min 32 chars) | (required) | `abc123def456ghi789jkl012mno345` |
+| `JWT_EXPIRES_IN` | Token expiration time | 24h | 24h, 7d, 1w |
 
-### Example .env
-```
+### Complete .env Example
+```dotenv
+# Server Configuration
 PORT=3000
 NODE_ENV=development
+
+# Database (SQLite file-based)
 DATABASE_URL="file:./prisma/dev.db"
-JWT_SECRET="your-super-secret-key-min-32-characters-long"
+
+# JWT Authentication
+JWT_SECRET="your-super-secret-key-that-is-at-least-32-characters-long!!"
 JWT_EXPIRES_IN=24h
 ```
 
 ### Database
 
-The project uses **Prisma 7** with **SQLite**:
+The project uses **Prisma 7** ORM with **SQLite** database:
 
 ```bash
 # Create or update database schema
 npx prisma migrate dev
 
-# View and edit data visually
+# View and edit data visually in browser
 npx prisma studio
 
 # Check migration status
 npx prisma migrate status
+
+# Reset database (CAREFUL: deletes all data!)
+npx prisma migrate reset
 ```
 
 ## Features
