@@ -4,7 +4,7 @@ import prisma from '../config/prisma.js'
  * Créer une inscription avec toutes les vérifications métier
  * [cite: 937, 938, 939, 941, 942, 943]
  */
-export const create = async (data) => {
+export const create = async (data, userId) => {
   const { tournamentId, playerId, teamId } = data
 
   // 1. Vérifier si le tournoi existe et son statut [cite: 938]
@@ -26,8 +26,12 @@ export const create = async (data) => {
   } else if (tournament.format === 'TEAM') {
     if (!teamId || playerId) {
       throw new Error('Un tournoi TEAM n’accepte que des équipes') // [cite: 940]
-    }
-  }
+    }    
+    // Vérifier que l'utilisateur est capitaine de l'équipe
+    const team = await prisma.team.findUnique({ where: { id: teamId } })
+    if (!team || team.captainId !== userId) {
+      throw new Error('Seul le capitaine peut inscrire l\'équipe')
+    }  }
 
   // 3. Vérifier la limite de participants [cite: 942]
   if (tournament.registrations.length >= tournament.maxParticipants) {

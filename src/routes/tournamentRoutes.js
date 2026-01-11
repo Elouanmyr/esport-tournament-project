@@ -123,8 +123,8 @@ router.get('/', tournamentController.getAll)
 router.get('/:id', tournamentController.getById)
 
 // Protégé : Création et modification (de ORGANIZER/ADMIN)
-router.post('/', authenticate, authorize('ORGANIZER', 'ADMIN'), validate(tournamentSchema), tournamentController.create)
-router.put('/:id', authenticate, authorize('ORGANIZER', 'ADMIN'), validate(tournamentSchema), tournamentController.update)
+router.post('/', authenticate, validate(tournamentSchema), authorize('ORGANIZER', 'ADMIN'), tournamentController.create)
+router.put('/:id', authenticate, validate(tournamentSchema), authorize('ORGANIZER', 'ADMIN'), tournamentController.update)
 router.delete('/:id', authenticate, authorize('ORGANIZER', 'ADMIN'), tournamentController.remove)
 router.patch('/:id/status', authenticate, tournamentController.updateStatus)
 

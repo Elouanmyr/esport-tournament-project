@@ -2,6 +2,8 @@ import { Router } from 'express'
 import * as registrationController from '../controllers/registrationController.js'
 import { authenticate } from '../middlewares/authenticate.js'
 import { authorize } from '../middlewares/authorize.js'
+import { validate } from '../middlewares/validate.js'
+import { registrationSchema } from '../schemas/registrationSchema.js'
 
 const router = Router({ mergeParams: true })
 
@@ -34,7 +36,7 @@ const router = Router({ mergeParams: true })
  *       201:
  *         description: Registration created
  */
-router.post('/register', authenticate, registrationController.create)
+router.post('/register', authenticate, validate(registrationSchema), registrationController.create)
 
 /**
  * @swagger

@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import * as teamController from '../controllers/teamController.js'
 import { authenticate } from '../middlewares/authenticate.js'
+import { validate } from '../middlewares/validate.js'
+import { teamSchema } from '../schemas/teamSchema.js'
 
 /**
  * @swagger
@@ -49,6 +51,8 @@ const router = Router()
 
 router.get('/', teamController.getAllTeams)
 router.get('/:id', teamController.getTeamById)
-router.post('/', authenticate, teamController.createTeam)
+router.post('/', authenticate, validate(teamSchema), teamController.createTeam)
+router.put('/:id', authenticate, validate(teamSchema), teamController.updateTeam)
+router.delete('/:id', authenticate, teamController.deleteTeam)
 
 export default router

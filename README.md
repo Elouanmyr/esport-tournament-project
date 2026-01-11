@@ -6,10 +6,11 @@ REST API for managing e-sport tournaments, teams and registrations.
 
 This application allows you to:
 - Create and manage e-sport tournaments (SOLO or TEAM format)
-- Manage teams with a captain
-- Register players or teams to tournaments
+- Manage teams with a captain system
+- Register individual players or entire teams to tournaments
 - Control access with JWT authentication and RBAC (Role-Based Access Control)
-- Manage tournament status transitions
+- Manage tournament lifecycle (DRAFT → OPEN → ONGOING → COMPLETED)
+- Track participant registrations with status management
 
 ## Getting Started
 
@@ -17,6 +18,7 @@ This application allows you to:
 
 - Node.js >= 24.0.0
 - npm >= 11.0.0
+- SQLite 3 (included with Prisma)
 
 ### Installation
 
@@ -28,227 +30,482 @@ cd PROJET_Tournois_Esport_Elouan
 # Install dependencies
 npm install
 
-# Create .env file
+# Create .env file from template
 cp .env.example .env
 
-# Initialize the database
+# Initialize the database and apply migrations
 npx prisma migrate dev
+
+# Seed database with sample data
+node prisma/seed.js
 
 # Start the server
 npm run dev
 ```
 
-The server starts on http://localhost:3000
+The server starts on **http://localhost:3000**
+
+API documentation available at **http://localhost:3000/api-docs** (Swagger UI)
 
 ## Configuration
 
 ### Environment Variables (.env)
 
-| Variable | Description | Example |
+| Variable | Description | Default |
 |----------|-------------|---------|
-| PORT | Server port | 3000 |
-| NODE_ENV | Environment | development |
-| DATABASE_URL | SQLite database path | file:./prisma/dev.db |
-| JWT_SECRET | JWT secret key (min 32 chars) | your-super-secret-key-here |
-| JWT_EXPIRES_IN | Token expiration | 24h |
+| `PORT` | Server port | 3000 |
+| `NODE_ENV` | Environment mode | development |
+| `DATABASE_URL` | SQLite database path | `file:./prisma/dev.db` |
+| `JWT_SECRET` | JWT signing secret (min 32 chars) | (required) |
+| `JWT_EXPIRES_IN` | Token expiration time | 24h |
+
+### Example .env
+```
+PORT=3000
+NODE_ENV=development
+DATABASE_URL="file:./prisma/dev.db"
+JWT_SECRET="your-super-secret-key-min-32-characters-long"
+JWT_EXPIRES_IN=24h
+```
 
 ### Database
 
-The project uses Prisma 7 with SQLite:
+The project uses **Prisma 7** with **SQLite**:
 
 ```bash
-# Apply migrations
+# Create or update database schema
 npx prisma migrate dev
 
-# View data in Prisma Studio
+# View and edit data visually
 npx prisma studio
+
+# Check migration status
+npx prisma migrate status
 ```
 
 ## Features
 
-### A. Authentication and Authorization (3 pts)
+### A. Authentication & Authorization (3 pts)
 
-Public routes:
-- POST /api/auth/register - Create a user account
-- POST /api/auth/login - Login and get JWT token
+**Public endpoints:**
+- `POST /api/auth/register` - Create user account
+- `POST /api/auth/login` - Login and receive JWT token
 
-Protected routes:
-- GET /api/auth/profile - Get user profile
+**Protected endpoints:**
+- `GET /api/auth/profile` - Get authenticated user profile
 
-Validations:
-- Email: valid format and unique
-- Username: 3-20 characters (alphanumeric + underscore), unique
-- Password: 8+ characters with uppercase, lowercase, digit
-- Role: defaults to PLAYER
+**Validations:**
+- Email: valid format and unique in database
+- Username: 3-20 alphanumeric characters + underscore, must be unique
+- Password: minimum 8 characters with uppercase, lowercase, and digit
+- Role: defaults to `PLAYER` (PLAYER | ORGANIZER | ADMIN)
+
+**Password Security:**
+- Hashed with bcrypt (SALT_ROUNDS=10)
+- Never stored in plain text
 
 ### B. Tournament Management (4 pts)
 
-CRUD routes:
+**CRUD Operations:**
 ```
-GET    /api/tournaments                    List all (with filters and pagination)
-GET    /api/tournaments/:id                Get details
-POST   /api/tournaments                    Create (ORGANIZER/ADMIN)
-PUT    /api/tournaments/:id                Update (ORGANIZER/ADMIN)
-DELETE /api/tournaments/:id                Delete (ORGANIZER/ADMIN)
-```
-
-Status management:
-```
-PATCH /api/tournaments/:id/status          Change status
+GET    /api/tournaments              List all tournaments (with filtering, sorting, pagination)
+GET    /api/tournaments/:id          Get tournament details
+POST   /api/tournaments              Create tournament (ORGANIZER/ADMIN only)
+PUT    /api/tournaments/:id          Update tournament (ORGANIZER/ADMIN only)
+DELETE /api/tournaments/:id          Delete tournament (ORGANIZER/ADMIN only)
 ```
 
-Allowed transitions:
-- DRAFT to OPEN: startDate > now
-- OPEN to ONGOING: 2+ CONFIRMED participants
-- ONGOING to COMPLETED: ADMIN only
-- Any to CANCELLED: Creator or ADMIN
+**Status Management:**
+```
+PATCH  /api/tournaments/:id/status   Update tournament status
+```
+
+**Status Transitions:**
+| From | To | Requirement |
+|------|-----|-----------|
+| DRAFT | OPEN | startDate must be in future |
+| OPEN | ONGOING | Minimum 2 CONFIRMED registrations |
+| ONGOING | COMPLETED | ADMIN only |
+| Any status | CANCELLED | Creator or ADMIN only |
+
+**Tournament Properties:**
+- `format`: SOLO (individual registration) or TEAM (team registration)
+- `maxParticipants`: Capacity limit
+- `status`: Current state (DRAFT, OPEN, ONGOING, COMPLETED, CANCELLED)
 
 ### C. Team Management (2 pts)
 
-Routes:
+**Routes:**
 ```
-GET    /api/teams                          List all teams
-GET    /api/teams/:id                      Get team with captain
-POST   /api/teams                          Create (authenticated user = captain)
-PUT    /api/teams/:id                      Update (captain only)
-DELETE /api/teams/:id                      Delete (captain only)
+GET    /api/teams                    List all teams
+GET    /api/teams/:id                Get team details with captain and members
+POST   /api/teams                    Create team (authenticated user becomes captain)
+PUT    /api/teams/:id                Update team (captain only)
+DELETE /api/teams/:id                Delete team (captain only, only if no active registrations)
 ```
+
+**Team Properties:**
+- Name: 3-50 characters, unique
+- Tag: 3-5 characters (uppercase + digits), unique
+- Captain: Single user who owns/manages the team
+- Members: Participants registered under this team
 
 ### D. Tournament Registrations (4 pts)
 
-Routes:
+**Routes:**
 ```
-POST   /api/tournaments/:tournamentId/register              Register (SOLO or TEAM)
-GET    /api/tournaments/:tournamentId/registrations        List registrations
-PATCH  /api/tournaments/:tournamentId/registrations/:id    Update status
-DELETE /api/tournaments/:tournamentId/registrations/:id    Cancel (PENDING only)
+POST   /api/registrations                    Register player/team to tournament
+GET    /api/registrations                    List all registrations
+GET    /api/registrations/:id                Get registration details
+PATCH  /api/registrations/:id                Update registration status (admin only)
+DELETE /api/registrations/:id                Cancel registration (PENDING only, creator can delete own)
+```
+
+**Registration Properties:**
+- `status`: PENDING, CONFIRMED, REJECTED, or WITHDRAWN
+- `playerId`: User ID (for SOLO format tournaments)
+- `teamId`: Team ID (for TEAM format tournaments)
+- Format validation: registrations must match tournament format
+
+**Registration Rules:**
+- Cannot exceed tournament `maxParticipants`
+- Cannot duplicate (same player/team cannot register twice for same tournament)
+- Only team captains can register a team
+- SOLO tournament can only accept player registrations
+- TEAM tournament can only accept team registrations
+
+### E. User Management (Bonus)
+
+**Admin-only routes:**
+```
+GET    /api/users                    List all users
+GET    /api/users/:id                Get user details
+DELETE /api/users/:id                Delete user account
 ```
 
 ## API Documentation
 
-### Swagger UI
+### Interactive Documentation
 
-Interactive documentation: http://localhost:3000/api-docs
+**Swagger UI**: http://localhost:3000/api-docs
 
-Test all endpoints directly with "Try it out" button.
+- Browse all endpoints with request/response examples
+- Test endpoints directly with the "Try it out" button
+- View detailed parameter descriptions and validation rules
 
-## Architecture
+### API Response Format
 
-MVC pattern:
-- Routes -> Controllers -> Services -> Prisma
-
-Project structure:
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "Masters 2026",
+    "format": "TEAM"
+  }
+}
 ```
-src/
-├── app.js                          Express configuration
-├── server.js                       Entry point
-├── config/                         Configuration files
-├── controllers/                    HTTP request handlers
-├── services/                       Business logic
-├── routes/                         API endpoints
-├── schemas/                        Zod validation schemas
-├── middlewares/                    Express middleware
-└── utils/                          Reusable helpers
 
-prisma/
-├── schema.prisma                   Database schema
-├── seed.js                         Sample data
-└── migrations/                     Migration history
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": "Tournament not found"
+}
+```
+
+## Project Structure
+
+```
+PROJET_Tournois_Esport_Elouan/
+├── src/
+│   ├── app.js                          Express application setup
+│   ├── server.js                       Server entry point
+│   ├── config/
+│   │   ├── env.js                      Environment variables validation (Zod)
+│   │   ├── prisma.js                   Prisma client singleton
+│   │   └── swagger.js                  OpenAPI/Swagger configuration
+│   ├── controllers/
+│   │   ├── authController.js           Authentication handlers
+│   │   ├── tournamentController.js     Tournament CRUD handlers
+│   │   ├── teamController.js           Team CRUD handlers
+│   │   ├── registrationController.js   Registration handlers
+│   │   └── userController.js           User management handlers
+│   ├── services/
+│   │   ├── authService.js              Authentication business logic
+│   │   ├── tournamentService.js        Tournament business logic
+│   │   ├── teamService.js              Team business logic
+│   │   ├── registrationService.js      Registration validation & logic
+│   │   └── userService.js              User management logic
+│   ├── routes/
+│   │   ├── index.js                    API routes aggregator
+│   │   ├── authRoutes.js               Authentication endpoints
+│   │   ├── tournamentRoutes.js         Tournament endpoints
+│   │   ├── teamRoutes.js               Team endpoints
+│   │   ├── registrationRoutes.js       Registration endpoints
+│   │   └── userRoutes.js               User management endpoints
+│   ├── schemas/
+│   │   ├── authSchema.js               Auth validation schemas (Zod)
+│   │   ├── tournamentSchema.js         Tournament validation schemas
+│   │   ├── teamSchema.js               Team validation schemas
+│   │   └── registrationSchema.js       Registration validation schemas
+│   ├── middlewares/
+│   │   ├── logger.js                   HTTP request logging
+│   │   ├── authenticate.js             JWT token verification
+│   │   ├── authorize.js                Role-based access control
+│   │   ├── errorHandler.js             Centralized error handling
+│   │   ├── notFound.js                 404 handler
+│   │   └── validate.js                 Zod schema validation middleware
+│   ├── utils/
+│   │   ├── asyncHandler.js             Async error wrapper
+│   │   ├── cryptoHelper.js             Password hashing with bcrypt
+│   │   ├── responseHelper.js           Standardized API responses
+│   │   └── iconHelper.js               Icon helper utilities
+│   ├── public/
+│   │   └── css/
+│   │       ├── input.css               Tailwind CSS source
+│   │       └── style.css               Generated CSS output
+│   └── views/
+│       ├── partials/                   Reusable EJS components
+│       │   ├── head.ejs
+│       │   ├── header.ejs
+│       │   ├── footer.ejs
+│       │   └── deleteModal.ejs
+│       └── pages/
+│           ├── home.ejs                Home page
+│           ├── error.ejs               Error page
+│           ├── auth/
+│           │   ├── login.ejs
+│           │   └── register.ejs
+│           └── admin/
+│               └── users.ejs           User management (admin only)
+├── prisma/
+│   ├── schema.prisma                   Database schema definition
+│   ├── seed.js                         Database initialization with test data
+│   ├── migrations/                     Database migration history
+│   │   ├── migration_lock.toml
+│   │   ├── 20251124095713_init/
+│   │   ├── 20251126132331_add_auth_fields/
+│   │   ├── 20251127210256_add_bookings/
+│   │   └── 20260105144224_init/
+├── .env.example                        Environment variables template
+├── .gitignore                          Git ignore rules
+├── eslint.config.js                    ESLint configuration
+├── package.json                        Dependencies and scripts
+├── package-lock.json                   Locked dependency versions
+├── prisma.config.ts                    Prisma configuration
+└── README.md                           This file
 ```
 
 ## Security
 
-- Passwords hashed with bcrypt
-- JWT authentication with 24h expiration
-- Role-Based Access Control (RBAC)
-- Input validation with Zod
-- Centralized error handling
-- Secrets stored in .env (not committed)
+- **Password Security**: Passwords hashed with bcrypt (SALT_ROUNDS=10)
+- **Authentication**: JWT tokens with 24-hour expiration
+- **Authorization**: Role-Based Access Control (RBAC) with roles: PLAYER, ORGANIZER, ADMIN
+- **Validation**: Input validation with Zod schemas (French error messages)
+- **Error Handling**: Centralized error handler prevents information leakage
+- **Environment Secrets**: Sensitive data stored in .env file (not committed to git)
 
-## Useful Commands
+## Available Commands
 
 ```bash
-# Development
-npm run dev              Start with hot reload
+# Development & Testing
+npm run dev              Start development server with hot reload
+npm run lint             Check code for errors (ESLint)
+npm run lint:fix         Automatically fix linting errors
+npm run format           Format code (Prettier)
 
 # Production
-npm run start            Start the server
+npm run start            Start production server
 
-# Database
-npx prisma studio       Open Prisma interface
-npx prisma migrate dev  Create migration
-
-# Code quality
-npm run lint             Check errors
-npm run lint:fix         Auto-fix errors
-npm run format           Format code
+# Database Management
+npx prisma studio       Open Prisma Studio GUI for data visualization
+npx prisma migrate dev  Create and apply database migrations
+npx prisma migrate status  Check migration status
+node prisma/seed.js     Seed database with sample data
 ```
 
 ## Example Usage
 
-### Register
+### 1. Register a New Player
 
 ```bash
 curl -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "player@example.com",
-    "username": "player123",
-    "password": "Password123",
+    "username": "pro_gamer",
+    "password": "SecurePass123",
     "role": "PLAYER"
   }'
 ```
 
-### Create Tournament
+### 2. Login and Get JWT Token
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "player@example.com",
+    "password": "SecurePass123"
+  }'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": 1,
+      "email": "player@example.com",
+      "username": "pro_gamer",
+      "role": "PLAYER"
+    }
+  }
+}
+```
+
+### 3. Create a Tournament (ORGANIZER only)
 
 ```bash
 curl -X POST http://localhost:3000/api/tournaments \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "name": "CS2 Championship",
+    "name": "CS2 Masters 2026",
     "game": "Counter-Strike 2",
     "format": "TEAM",
     "maxParticipants": 16,
     "prizePool": 5000,
-    "startDate": "2026-01-20T18:00:00Z"
+    "startDate": "2026-02-01T18:00:00Z",
+    "endDate": "2026-02-02T22:00:00Z"
   }'
 ```
 
-### Register for Tournament
+### 4. Create a Team
 
 ```bash
-curl -X POST http://localhost:3000/api/tournaments/1/register \
+curl -X POST http://localhost:3000/api/teams \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "playerId": 1
+    "name": "Pro Esports Club",
+    "tag": "PROES"
   }'
 ```
 
-## API Response Format
-
-Success:
+Response:
 ```json
 {
   "success": true,
-  "data": {},
-  "message": "Optional message"
+  "data": {
+    "id": 1,
+    "name": "Pro Esports Club",
+    "tag": "PROES",
+    "captainId": 1,
+    "createdAt": "2026-01-11T10:30:00Z"
+  }
 }
 ```
 
-Error:
-```json
-{
-  "success": false,
-  "error": "Error description",
-  "status": 400
+### 5. Register Team for Tournament
+
+```bash
+curl -X POST http://localhost:3000/api/registrations \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "tournamentId": 1,
+    "teamId": 1
+  }'
+```
+
+### 6. Register Player for SOLO Tournament
+
+```bash
+curl -X POST http://localhost:3000/api/registrations \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "tournamentId": 2,
+    "playerId": 3
+  }'
+```
+
+## Database Schema
+
+### User Model
+```prisma
+model User {
+  id               Int      @id @default(autoincrement())
+  email            String   @unique
+  username         String   @unique
+  password         String   // bcrypt hashed
+  role             Role     @default(PLAYER)
+  teamId           Int?     // Foreign key (team member)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+```
+
+### Tournament Model
+```prisma
+model Tournament {
+  id               Int      @id @default(autoincrement())
+  name             String
+  game             String
+  format           Format   // SOLO or TEAM
+  maxParticipants  Int
+  prizePool        Float    @default(0)
+  startDate        DateTime
+  endDate          DateTime?
+  status           Status   @default(DRAFT)
+  organizerId      Int      // Foreign key to User
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  registrations    Registration[]
+}
+```
+
+### Team Model
+```prisma
+model Team {
+  id               Int      @id @default(autoincrement())
+  name             String   @unique
+  tag              String   @unique
+  captainId        Int      @unique // Team captain (User)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  registrations    Registration[]
+}
+```
+
+### Registration Model
+```prisma
+model Registration {
+  id               Int      @id @default(autoincrement())
+  status           RegStatus @default(PENDING)
+  tournamentId     Int      // Foreign key to Tournament
+  playerId         Int?     // Foreign key to User (for SOLO)
+  teamId           Int?     // Foreign key to Team (for TEAM)
+  registeredAt     DateTime @default(now())
+  confirmedAt      DateTime?
 }
 ```
 
 ## Testing
 
-Manual testing through Swagger UI at http://localhost:3000/api-docs
+Manual testing is available through Swagger UI at:
+- **http://localhost:3000/api-docs**
+
+Use the "Try it out" button to test all endpoints with:
+- Real request/response examples
+- Parameter validation
+- Authorization headers
+- Response status codes
 
 ## License
 
@@ -258,310 +515,13 @@ MIT
 
 This is an academic project for the Node.js Master course at Hesias.
 
-All API responses follow a standardized format:
-
-```json
-// Success
-{
-  "success": true,
-  "data": { ... }
-}
-
-// Error
-{
-  "success": false,
-  "error": "Error message"
-}
-```
-
-## Authentication
-
-The API uses **JWT (JSON Web Tokens)** for authentication with **bcrypt** for password hashing.
-
-### Authentication Flow
-
-1. **Register**: `POST /api/auth/register` - Create account
-2. **Login**: `POST /api/auth/login` - Get JWT token
-3. **Use token**: Include in header `Authorization: Bearer <token>`
-
-### Protected Routes
-
-| Access Level | Routes |
-|--------------|--------|
-| Public | GET routes (read-only) |
-| Authenticated | POST, PUT, DELETE on games and stations |
-| Admin only | User management (`/api/users/*`) |
-
-### Web Session
-
-For EJS views, sessions are used to maintain authentication state. Login/register forms are available at `/login` and `/register`.
-
-### Roles
-
-- **user**: Default role, can manage own bookings
-- **admin**: Full access including user management
-
-## Web Pages (EJS)
-
-| Route | Description |
-|-------|-------------|
-| / | Home page with stats |
-| /login | Login form |
-| /register | Registration form |
-| /admin/users | User management (admin only) |
-| /games | Games list with CRUD actions |
-| /games/new | Create new game form |
-| /games/:id | Game details |
-| /games/:id/edit | Edit game form |
-| /stations | Stations list with CRUD actions |
-| /stations/new | Create new station form |
-| /stations/:id | Station details |
-| /stations/:id/edit | Edit station form |
-| /bookings | Bookings list |
-| /bookings/new | Create new booking form |
-| /bookings/:id/edit | Edit booking form |
-
-## API Routes
-
-### Documentation
-- **Swagger UI**: `http://localhost:3000/api-docs`
-
-### Games
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | /api/games | List games (filters: genre, limit, offset) |
-| GET | /api/games/:id | Get game by ID |
-| POST | /api/games | Create game |
-| PUT | /api/games/:id | Update game |
-| DELETE | /api/games/:id | Delete game |
-
-### Stations
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | /api/stations | List stations (filters: status, limit, offset) |
-| GET | /api/stations/:id | Get station by ID |
-| POST | /api/stations | Create station (auth required) |
-| PUT | /api/stations/:id | Update station (auth required) |
-| DELETE | /api/stations/:id | Delete station (auth required) |
-
-### Authentication
-| Method | Route | Description |
-|--------|-------|-------------|
-| POST | /api/auth/register | Create new account |
-| POST | /api/auth/login | Login and get JWT token |
-| GET | /api/auth/me | Get current user (auth required) |
-
-### Bookings
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | /api/bookings | List bookings (filters: userId, stationId, status) |
-| GET | /api/bookings/:id | Get booking by ID |
-| POST | /api/bookings | Create booking (auth required) |
-| PUT | /api/bookings/:id | Update booking (auth required) |
-| DELETE | /api/bookings/:id | Delete booking (auth required) |
-
-### Users (Admin only)
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | /api/users | List all users |
-| GET | /api/users/:id | Get user by ID |
-| DELETE | /api/users/:id | Delete user |
-
-## Project Structure
-
-```
-src/
-├── config/
-│   ├── env.js              Environment validation (Zod)
-│   ├── prisma.js           Prisma client instance
-│   └── swagger.js          OpenAPI configuration
-├── controllers/
-│   ├── authController.js
-│   ├── tournamentController.js
-│   ├── teamController.js
-│   ├── registrationController.js
-│   └── userController.js
-├── middlewares/
-│   ├── authenticate.js     JWT token verification
-│   ├── authorize.js        Role-based access control
-│   ├── logger.js           Request logging
-│   ├── errorHandler.js     Centralized error handling
-│   ├── notFound.js         404 handler
-│   └── validate.js         Zod validation middleware
-├── routes/
-│   ├── index.js            API routes aggregator
-│   ├── authRoutes.js       Auth API routes
-│   ├── tournamentRoutes.js Tournament API routes
-│   ├── teamRoutes.js       Teams API routes
-│   ├── registrationRoutes.js Registrations API routes
-│   └── userRoutes.js       Users API routes
-├── schemas/
-│   ├── authSchema.js       Zod schema for auth
-│   ├── tournamentSchema.js Zod schema for tournaments
-│   ├── teamSchema.js       Zod schema for teams
-│   └── registrationSchema.js Zod schema for registrations
-├── services/
-│   ├── authService.js      Authentication logic
-│   ├── tournamentService.js Tournament business logic
-│   ├── teamService.js      Team business logic
-│   ├── registrationService.js Registration business logic
-│   └── userService.js      User business logic
-├── utils/
-│   ├── asyncHandler.js     Async error wrapper
-│   ├── responseHelper.js   Standardized API responses
-│   └── iconHelper.js       Lucide icons helper
-├── public/
-│   └── css/
-│       ├── input.css       Tailwind source
-│       └── style.css       Generated CSS
-├── views/
-│   ├── partials/           head, header, footer, deleteModal
-│   └── pages/              home, error, auth/, admin/, tournaments/
-├── app.js                  Express app configuration
-└── server.js               Entry point (starts server)
-
-prisma/
-├── schema.prisma           Database schema
-├── migrations/             Database migrations
-└── seed.js                 Seed script
-
-tests/
-├── unit/                   Unit tests
-├── integration/            Integration tests
-└── setup.js                Test configuration
-
-.env                        Environment variables (gitignored)
-.env.example                Environment template
-package.json                Dependencies and scripts
-```
-
-## Features
-
-- **MVC Architecture** with clear separation of concerns
-- **Prisma 7 ORM** with SQLite database
-- **EJS templates** with server-side rendering
-- **Tailwind CSS** for styling
-- **Lucide icons** (lucide-static)
-- Complete CRUD operations for Tournaments, Teams, and Registrations
-- OpenAPI 3.0 documentation with Swagger UI
-- **Zod validation** with French error messages
-- **Custom middlewares** (logger, errorHandler, notFound, validate)
-- **Standardized API responses** with success/error format
-- **Environment configuration** with dotenv and Zod validation
-- **JWT authentication** with bcrypt password hashing
-- **Role-based access control** (PLAYER, ORGANIZER, ADMIN)
-- Tournament status management (DRAFT, OPEN, ONGOING, COMPLETED, CANCELLED)
-- Team management with captain verification
-- Registration system with format validation (SOLO vs TEAM)
-- Filters and pagination
-- Colored logs (chalk)
-- Async/await error handling with asyncHandler
-
-## Middlewares
-
-The application uses custom Express middlewares:
-
-1. **logger** - Logs HTTP requests with method, URL, status code, and duration
-2. **errorHandler** - Centralized error handling (JSON for API, HTML for views)
-3. **notFound** - Handles 404 errors for undefined routes
-4. **validate(schema)** - Factory middleware for Zod schema validation
-5. **authenticate** - Verifies JWT token from Authorization header
-6. **authorize(...roles)** - Restricts access to specific roles
-
-### Middleware Order (Critical)
-
-```javascript
-app.use(logger)           // First: log all requests
-app.use(express.json())   // Parse JSON bodies
-app.use(express.static())
-app.use('/api', apiRoutes) // API routes
-app.use(notFound)         // After all routes
-app.use(errorHandler)     // Last: catch all errors (4 params)
-```
-
-## Utils
-
-### asyncHandler
-
-Wraps async route handlers to automatically catch errors:
-
-```javascript
-export const asyncHandler = fn => {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next)
-  }
-}
-```
-
-### responseHelper
-
-Standardizes API JSON responses:
-
-```javascript
-export const success = data => ({ success: true, data })
-export const created = data => ({ success: true, data })
-export const error = (message, status) => ({ success: false, error: message })
-```
-
-## Validation
-
-Data validation is handled by **Zod** schemas with French error messages:
-
-```javascript
-// Example: tournamentSchema.js
-import { z } from 'zod'
-
-export const tournamentSchema = z.object({
-  name: z.string().min(1),
-  game: z.string().min(1),
-  format: z.enum(['SOLO', 'TEAM']),
-  maxParticipants: z.number().int().min(2),
-  prizePool: z.number().min(0),
-  startDate: z.string().datetime(),
-  endDate: z.string().datetime().optional()
-})
-```
-
-## Database Models
-
-### User
-- `id`: Auto-increment primary key
-- `email`: Unique email
-- `username`: Unique username (3-20 chars)
-- `password`: Hashed password (bcrypt)
-- `role`: PLAYER | ORGANIZER | ADMIN
-- `teamId`: Foreign key to Team (optional, member)
-- `createdAt`, `updatedAt`: Timestamps
-- Relations: `captainOf` (Team), `team` (TeamMembers), `organizedTournaments`, `registrations`
-
-### Tournament
-- `id`: Auto-increment primary key
-- `name`: Tournament name
-- `game`: Game title
-- `format`: SOLO | TEAM
-- `maxParticipants`: Max participants count
-- `prizePool`: Prize pool amount
-- `startDate`: Tournament start datetime
-- `endDate`: Tournament end datetime (optional)
-- `status`: DRAFT | OPEN | ONGOING | COMPLETED | CANCELLED
-- `organizerId`: Foreign key to User
-- `createdAt`, `updatedAt`: Timestamps
-- Relations: `registrations` (one-to-many)
-
-### Team
-- `id`: Auto-increment primary key
-- `name`: Team name (3-50 chars, unique)
-- `tag`: Team tag (3-5 chars, uppercase+digits, unique)
-- `captainId`: Foreign key to User (unique)
-- `createdAt`, `updatedAt`: Timestamps
-- Relations: `captain`, `members` (one-to-many), `registrations`
-
-### Registration
-- `id`: Auto-increment primary key
-- `status`: PENDING | CONFIRMED | REJECTED | WITHDRAWN
-- `tournamentId`: Foreign key to Tournament
-- `playerId`: Foreign key to User (optional, for SOLO)
-- `teamId`: Foreign key to Team (optional, for TEAM)
-- `registeredAt`: Registration datetime
-- `confirmedAt`: Confirmation datetime (optional)
-- Relations: `tournament`, `player`, `team`
+Built with:
+- **Express 5.0.1** - Web framework
+- **Prisma 7.2.0** - Database ORM
+- **SQLite** - Database
+- **JWT** - Authentication
+- **Zod** - Schema validation
+- **Bcrypt** - Password hashing
+- **EJS** - Server-side templating
+- **Tailwind CSS** - Styling
+- **Swagger/OpenAPI** - API documentation
