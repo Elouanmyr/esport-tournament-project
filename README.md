@@ -26,7 +26,7 @@ This application allows you to:
 ```bash
 # 1. Clone the repository
 git clone <repository-url>
-cd PROJET_Tournois_Esport_Elouan
+cd cd esport-tournament-project ; ls
 
 # 2. Install dependencies (this takes 1-2 minutes)
 npm install
@@ -51,7 +51,7 @@ node prisma/seed.js
 npm run dev
 ```
 
-**✅ Server is now running!**
+** Server is now running!**
 - **API**: http://localhost:3000
 - **Swagger UI**: http://localhost:3000/api-docs
 - **Prisma Studio**: Run `npx prisma studio` in another terminal to view/edit data
